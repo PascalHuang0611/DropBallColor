@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Drop 遊戲 DEMO</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+
+        :root {
+            /* 定義我們遊戲的六種顏色 */
+            --color-1: #f1c40f; /* 黃 */
+            --color-2: #ecf0f1; /* 白 */
+            --color-3: #ff79c6; /* 粉 */
+            --color-4: #3498db; /* 藍 */
+            --color-5: #e74c3c; /* 紅 */
+            --color-6: #2ecc71; /* 綠 */
+            
+            --board-border: #bdc3c7;
+            --bg-color: #2c3e50;
+            --text-color-dark: #2c3e50;
+            --text-color-light: #ecf0f1;
+            --ball-size: 50px;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 30px;
+            padding: 20px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 15px;
+            width: 250px;
+            flex-shrink: 0;
+        }
+
+        .balance-display { text-align: center; }
+        .balance-display h2 { margin: 0 0 5px 0; color: #f1c40f; }
+        #playerBalance { font-size: 28px; font-weight: bold; }
+
+        .game-button {
+            width: 100%;
+            padding: 12px 25px;
+            font-size: 18px;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 5px #666;
+            transition: all 0.1s ease-in-out;
+            box-sizing: border-box;
+        }
+        .game-button:active { transform: translateY(3px); box-shadow: 0 2px #666; }
+        .game-button:disabled {
+            background-color: #7f8c8d !important;
+            box-shadow: 0 5px #616a6b !important;
+            cursor: not-allowed;
+        }
+
+        #throwButton { background-color: #27ae60; box-shadow: 0 5px #1e8449; }
+        #clearBetsButton { background-color: #e67e22; box-shadow: 0 5px #d35400; }
+        #configLabel { background-color: #2980b9; box-shadow: 0 5px #20638f; text-align:center; }
+        #configFile { display: none; }
+
+        .game-area { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        
+        #result-display {
+            display: flex;
+            gap: 10px;
+            height: calc(var(--ball-size) + 10px);
+            padding: 5px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .ball-result {
+            width: var(--ball-size);
+            height: var(--ball-size);
+            border-radius: 50%;
+            box-shadow: 3px 3px 5px rgba(0,0,0,0.5), inset 2px 2px 5px rgba(255,255,255,0.5);
+            transform: scale(0);
+            opacity: 0;
+            transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+
+        .ball-result.show {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        /* --- 修改點 1: 調整遊戲版面大小與佈局 --- */
+        #game-board {
+            width: 360px;
+            height: 60px; /* 將高度從360px改為60px，形成一個長方形 */
+            border: 10px solid var(--board-border);
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,0,0,0.5);
+            display: grid;
+            grid-template-columns: repeat(6, 1fr); /* 保持6欄 */
+            overflow: hidden;
+        }
+
+        .grid-cell {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .grid-bonus-multiplier {
+            position: absolute;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 2px 8px;
+            border-radius: 15px;
+            border: 2px solid #f1c40f;
+            z-index: 15;
+            animation: pop-in 0.3s ease;
+        }
+        @keyframes pop-in { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        #controls { text-align: center; }
+        #status { font-size: 24px; font-weight: bold; height: 30px; line-height:30px; text-shadow: 2px 2px 4px #000; }
+        #sub-status { font-size: 16px; color: #ccc; height: 20px; line-height: 20px;}
+        #result-details { font-size: 16px; min-height: 50px; color: #f1c40f; font-weight: bold; padding-top: 10px;}
+        
+        #betting-panel { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; 
+            width: 360px; 
+            margin-top: 20px;
+        }
+
+        .bet-button {
+            position: relative;
+            padding: 25px 15px 15px 15px;
+            font-size: 18px;
+            border-radius: 8px;
+            color: var(--text-color-dark);
+            border: 4px solid transparent;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.2s;
+            font-weight: bold;
+        }
+        .bet-button:active { transform: scale(0.95); }
+        .bet-button.has-bet { border-color: #f1c40f; }
+        .bet-button:disabled { cursor: not-allowed; opacity: 0.6; }
+        
+        .bet-chip {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #e67e22;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 15px;
+            border: 2px solid white;
+            min-width: 40px;
+            text-align: center;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+            display: none;
+        }
+        .bet-button.has-bet .bet-chip { display: block; }
+
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="balance-display">
+                <h2>玩家餘額</h2>
+                <span id="playerBalance"></span>
+            </div>
+            <label for="configFile" id="configLabel" class="game-button">載入設定檔</label>
+            <input type="file" id="configFile" accept=".json">
+            <button id="throwButton" class="game-button" disabled>開始遊戲</button>
+            <button id="clearBetsButton" class="game-button" disabled>清除押注</button>
+        </div>
+        
+        <div class="game-area">
+            <div id="controls">
+                <div id="status">請先載入設定檔</div>
+                <div id="sub-status"></div>
+                <div id="result-details"></div>
+            </div>
+            <div id="result-display"></div>
+            <div id="game-board"></div>
+            <div id="betting-panel"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM 元素 ---
+        let throwButton, clearBetsButton, statusEl, subStatusEl, resultDetailsEl, 
+            boardEl, configFileEl, playerBalanceEl, bettingPanelEl, resultDisplayEl;
+
+        // --- 遊戲常數 ---
+        const BET_AMOUNT_PER_CLICK = 100;
+
+        // --- 遊戲狀態變數 ---
+        let gameConfig = null;
+        let playerBalance = 10000;
+        let currentBets = {}; // { yellow: 100, blue: 200 }
+        let isThrowing = false;
+        let colorMap = {}; // 用於儲存顏色名稱與CSS變數的對應
+
+        // --- 函數定義 ---
+        
+        function updateBalanceDisplay() {
+            if (playerBalanceEl) playerBalanceEl.textContent = playerBalance.toLocaleString();
+        }
+
+        function updateBetChip(betKey, amount) {
+            const button = document.querySelector(`[data-bet-key="${betKey}"]`);
+            if (!button) return;
+            const chip = button.querySelector('.bet-chip');
+            if (chip) {
+                if (amount > 0) {
+                    chip.textContent = amount.toLocaleString();
+                    button.classList.add('has-bet');
+                } else {
+                    chip.textContent = '';
+                    button.classList.remove('has-bet');
+                }
+            }
+        }
+
+        function setControlsState(isLocked) {
+            isThrowing = isLocked;
+            if (throwButton) throwButton.disabled = isLocked || !gameConfig;
+            document.querySelectorAll('.bet-button').forEach(btn => btn.disabled = isLocked);
+            if (clearBetsButton) clearBetsButton.disabled = isLocked || Object.keys(currentBets).length === 0;
+        }
+        
+        function resetBetState() {
+            const totalBetToRefund = Object.values(currentBets).reduce((sum, amount) => sum + amount, 0);
+            playerBalance += totalBetToRefund;
+            currentBets = {};
+            document.querySelectorAll('.bet-button').forEach(btn => {
+                const betKey = btn.dataset.betKey;
+                updateBetChip(betKey, 0);
+            });
+            if (clearBetsButton) clearBetsButton.disabled = true;
+            updateBalanceDisplay();
+        }
+        
+        function handleClearBets() {
+            if(isThrowing) return;
+            resetBetState();
+        }
+
+        function handleConfigFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const newConfig = JSON.parse(e.target.result);
+                    // 驗證設定檔結構
+                    if (newConfig.rules && newConfig.rules.outcomes && newConfig.payouts) {
+                       gameConfig = newConfig;
+                       statusEl.textContent = '設定檔載入成功！';
+                       subStatusEl.textContent = '請點擊下方按鈕押注';
+                       resultDetailsEl.textContent = `每注 ${BET_AMOUNT_PER_CLICK} 元`;
+                       setControlsState(false);
+                       setupGameFromConfig();
+                    } else {
+                       statusEl.textContent = '設定檔缺少必要參數！';
+                       gameConfig = null;
+                       setControlsState(true);
+                    }
+                } catch (error) {
+                    statusEl.textContent = 'JSON 檔案格式錯誤！';
+                    setControlsState(true);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function setupGameFromConfig() {
+            createColorMap();
+            createBoard();
+            createBettingPanel();
+            createResultBalls();
+        }
+
+        function createColorMap() {
+            colorMap = {};
+            gameConfig.rules.outcomes.forEach((colorName, index) => {
+                colorMap[colorName] = `var(--color-${index + 1})`;
+            });
+        }
+
+        // --- 修改點 2: 更新版面生成邏輯 ---
+        function createBoard() {
+            boardEl.innerHTML = '';
+            const colors = gameConfig.rules.outcomes;
+            // 只生成6個格子，每個格子代表一種顏色
+            for (let i = 0; i < colors.length; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('grid-cell');
+                const color = colors[i];
+                cell.style.backgroundColor = colorMap[color];
+                boardEl.appendChild(cell);
+            }
+        }
+
+        function createBettingPanel() {
+            bettingPanelEl.innerHTML = '';
+            gameConfig.rules.outcomes.forEach((colorKey, index) => {
+                const button = document.createElement('button');
+                button.className = 'bet-button';
+                button.dataset.betKey = colorKey;
+                
+                // 建立一個本地化的對應表
+                const colorNames = {
+                    "yellow": "黃", "white": "白", "pink": "粉",
+                    "blue": "藍", "red": "紅", "green": "綠"
+                };
+                button.textContent = colorNames[colorKey] || colorKey;
+                button.style.backgroundColor = colorMap[colorKey];
+
+                const chip = document.createElement('span');
+                chip.className = 'bet-chip';
+                button.appendChild(chip);
+
+                button.addEventListener('click', handleBetting);
+                bettingPanelEl.appendChild(button);
+            });
+        }
+
+        function createResultBalls() {
+            resultDisplayEl.innerHTML = '';
+            for (let i = 0; i < gameConfig.rules.numberOfBalls; i++) {
+                const ball = document.createElement('div');
+                ball.className = 'ball-result';
+                resultDisplayEl.appendChild(ball);
+            }
+        }
+
+        function handleBetting(event) {
+            if (isThrowing || !gameConfig) return;
+            const button = event.currentTarget;
+            const betKey = button.dataset.betKey;
+
+            if (playerBalance >= BET_AMOUNT_PER_CLICK) {
+                playerBalance -= BET_AMOUNT_PER_CLICK;
+                currentBets[betKey] = (currentBets[betKey] || 0) + BET_AMOUNT_PER_CLICK;
+                
+                updateBalanceDisplay();
+                updateBetChip(betKey, currentBets[betKey]);
+                clearBetsButton.disabled = false;
+            } else {
+                subStatusEl.textContent = '餘額不足！';
+            }
+        }
+
+        function handleThrow() {
+            if (isThrowing || !gameConfig || Object.keys(currentBets).length === 0) {
+                subStatusEl.textContent = '請先押注！';
+                return;
+            };
+            
+            setControlsState(true);
+
+            const totalBet = Object.values(currentBets).reduce((sum, amount) => sum + amount, 0);
+            statusEl.textContent = '開獎中...';
+            subStatusEl.textContent = `總押注: ${totalBet.toLocaleString()}`;
+            resultDetailsEl.innerHTML = '';
+            
+            // 清除上一局的視覺效果
+            clearBonusesFromGrid();
+            document.querySelectorAll('.ball-result').forEach(b => b.classList.remove('show'));
+            
+            // 模擬遊戲邏輯
+            const gameResult = runGameLogic();
+
+            // 動畫效果
+            setTimeout(() => {
+                displayResults(gameResult);
+            }, 500);
+        }
+
+        function runGameLogic() {
+            // 1. 模擬球的掉落結果
+            const ballResults = [];
+            for (let i = 0; i < gameConfig.rules.numberOfBalls; i++) {
+                ballResults.push(randomChoice(gameConfig.rules.outcomes));
+            }
+
+            // 2. 模擬隨機加倍機制
+            const rmConfig = gameConfig.payouts.randomMultiplierFeature || {};
+            let hotColors = new Set();
+            if (Math.random() < (rmConfig.triggerChance || 0)) {
+                hotColors = new Set(randomSample(gameConfig.rules.outcomes, rmConfig.selectionCount || 0));
+            }
+
+            // 3. 計算每個押注的結果
+            let totalWinnings = 0;
+            let winDetails = [];
+
+            for (const betColor in currentBets) {
+                const betAmount = currentBets[betColor];
+                const matchCount = ballResults.filter(res => res === betColor).length;
+                
+                let baseWin = 0;
+                let bonusDetail = '';
+
+                if (matchCount === 1) {
+                    const payout = gameConfig.payouts.baseGame.find(p => p.matchCount === 1);
+                    baseWin = betAmount + (betAmount * (payout ? payout.multiplier : 0));
+                } else if (matchCount === 2) {
+                    const payout = gameConfig.payouts.baseGame.find(p => p.matchCount === 2);
+                    baseWin = betAmount + (betAmount * (payout ? payout.multiplier : 0));
+                } else if (matchCount === 3) {
+                    const wheelResult = spinWheel();
+                    bonusDetail = ` (轉輪: ${wheelResult.name})`;
+                    if (wheelResult.type === 'Multiplier' || wheelResult.type === 'Odds') {
+                        baseWin = betAmount + (betAmount * wheelResult.value);
+                    } else { // JP
+                        baseWin = wheelResult.value; // 假設JP是固定金額
+                    }
+                }
+
+                let extraWin = 0;
+                if (baseWin > betAmount && hotColors.has(betColor)) { // 只有贏錢時才觸發額外獎勵
+                    extraWin = betAmount * (rmConfig.extraMultiplier || 0);
+                }
+
+                const totalRoundWin = baseWin + extraWin;
+                if (totalRoundWin > 0) {
+                    totalWinnings += totalRoundWin;
+                    const colorName = document.querySelector(`[data-bet-key="${betColor}"]`).textContent;
+                    let detail = `${colorName}押注 ${betAmount} 贏得 ${totalRoundWin.toLocaleString()}${bonusDetail}`;
+                    if (extraWin > 0) {
+                        detail += ` (含幸運加成 ${extraWin.toLocaleString()})`;
+                    }
+                    winDetails.push(detail);
+                }
+            }
+            
+            return { ballResults, hotColors, totalWinnings, winDetails };
+        }
+
+        function displayResults(gameResult) {
+            const { ballResults, hotColors, totalWinnings, winDetails } = gameResult;
+            
+            // 顯示球的結果
+            const ballElements = document.querySelectorAll('.ball-result');
+            ballResults.forEach((color, i) => {
+                if (ballElements[i]) {
+                    ballElements[i].style.backgroundColor = colorMap[color];
+                    setTimeout(() => ballElements[i].classList.add('show'), i * 200);
+                }
+            });
+
+            // 顯示幸運加成
+            hotColors.forEach(color => {
+                const cellIndex = gameConfig.rules.outcomes.indexOf(color);
+                if (cellIndex !== -1) {
+                    const cell = boardEl.children[cellIndex];
+                    if (cell) {
+                         const bonusEl = document.createElement('div');
+                         bonusEl.className = 'grid-bonus-multiplier';
+                         bonusEl.textContent = `x${gameConfig.payouts.randomMultiplierFeature.extraMultiplier}`;
+                         cell.appendChild(bonusEl);
+                    }
+                }
+            });
+
+            // 顯示狀態和獎金
+            if (totalWinnings > 0) {
+                statusEl.textContent = `恭喜！總共贏得 ${totalWinnings.toLocaleString()}`;
+                playerBalance += totalWinnings;
+            } else {
+                const totalBet = Object.values(currentBets).reduce((sum, amount) => sum + amount, 0);
+                statusEl.textContent = totalBet > 0 ? '再接再厲！' : '觀看開獎結果';
+            }
+            
+            resultDetailsEl.innerHTML = winDetails.join('<br>') || '本次無押注或未中獎';
+            
+            updateBalanceDisplay();
+            currentBets = {}; // 清空本局押注
+            document.querySelectorAll('.bet-button').forEach(btn => updateBetChip(btn.dataset.betKey, 0));
+
+            setControlsState(false);
+            subStatusEl.textContent = '請點擊下方按鈕重新押注';
+        }
+
+        function spinWheel() {
+            const prizes = gameConfig.bonusWheel.prizes;
+            const population = prizes.map(p => p.id);
+            const weights = prizes.map(p => p.weight);
+            const chosenId = weightedChoice(population, weights);
+            return prizes.find(p => p.id === chosenId);
+        }
+
+        function clearBonusesFromGrid() {
+            document.querySelectorAll('.grid-bonus-multiplier').forEach(el => el.remove());
+        }
+        
+        function weightedChoice(population, weights) {
+            const cumulativeWeights = [];
+            let total = 0;
+            for (const weight of weights) {
+                total += weight;
+                cumulativeWeights.push(total);
+            }
+            const rand = Math.random() * total;
+            const index = cumulativeWeights.findIndex(cw => rand < cw);
+            return population[index];
+        }
+        
+        function randomChoice(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function randomSample(arr, k) {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, k);
+        }
+
+        function initializeApp() {
+            // DOM 元素賦值
+            throwButton = document.getElementById('throwButton');
+            clearBetsButton = document.getElementById('clearBetsButton');
+            statusEl = document.getElementById('status');
+            subStatusEl = document.getElementById('sub-status');
+            resultDetailsEl = document.getElementById('result-details');
+            boardEl = document.getElementById('game-board');
+            configFileEl = document.getElementById('configFile');
+            playerBalanceEl = document.getElementById('playerBalance');
+            bettingPanelEl = document.getElementById('betting-panel');
+            resultDisplayEl = document.getElementById('result-display');
+
+            // 事件監聽器綁定
+            configFileEl.addEventListener('change', handleConfigFile);
+            clearBetsButton.addEventListener('click', handleClearBets);
+            throwButton.addEventListener('click', handleThrow);
+            
+            updateBalanceDisplay();
+            setControlsState(true); // 初始鎖定，直到載入設定檔
+        }
+
+        // --- 啟動點 ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
